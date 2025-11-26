@@ -31,3 +31,6 @@ spring:
               filters:
                 - AuthValidationFilter
                 - LoggingFilter
+
+auth-service:
+  url: http://localhost:8081
