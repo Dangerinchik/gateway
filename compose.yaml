@@ -1,64 +1,105 @@
 services:
   gateway:
     build:
-      context: ./gateway
+      context: .
     ports:
       - 8080:8080
-  userservice:
+    depends_on:
+      user-service:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+  user-service:
     build:
       context: ./userservice
-    ports:
-      - 8082:8082
+    expose:
+      - 8082
     environment:
       - DB_URL=${USER_DB_URL}
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${USER_DB_NAME}
-      - DB_HOST=db
+      - DB_HOST=user-db
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     depends_on:
-      user_db:
+      user-db:
         condition: service_healthy
       redis:
         condition: service_healthy
-  authservice:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  auth-service:
     build:
-      context: ./authservice
-    ports:
-      - 8081:8081
+      context: ./auth-service
+    expose:
+      - 8081
     environment:
       - DB_URL=${AUTH_DB_URL}
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${AUTH_DB_NAME}
-      - DB_HOST=db
+      - DB_HOST=auth-db
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION_ACCESS=${JWT_EXPIRATION_ACCESS}
       - JWT_EXPIRATION_REFRESH=${JWT_EXPIRATION_REFRESH}
     depends_on:
-      db:
+      auth-db:
         condition: service_healthy
-  orderservice:
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8081/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  order-service:
     build:
-      context: ./orderservice
-    ports:
-      - 8083:8083
+      context: ./order-service
+    expose:
+      - 8083
     environment:
       - DB_URL=${ORDER_DB_URL}
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${ORDER_DB_NAME}
-      - DB_HOST=db
+      - DB_HOST=order-db
     depends_on:
-      db:
+      order-db:
         condition: service_healthy
-  user_db:
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8083/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  payment-service:
+    build:
+      context: ./payment-service
+    expose:
+      - 8085
+    environment:
+      - MONGO_USERNAME=${MONGO_USERNAME}
+      - MONGO_PASSWORD=${MONGO_PASSWORD}
+      - MONGO_URL=${MONGO_URL}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8085/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  user-db:
     image: postgres:latest
     restart: always
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - user-db-data:/var/lib/postgresql/data
     environment:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_USER=${DB_USERNAME}
@@ -70,26 +111,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    redis:
-      image: redis:latest
-      restart: unless-stopped
-      ports:
-        - "6379:6379"
-      environment:
-        - REDIS_PASSWORD=${REDIS_PASSWORD}
-      command: redis-server --requirepass ${REDIS_PASSWORD}
-      healthcheck:
-        test: [ "CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping | grep PONG" ]
-        interval: 10s
-        timeout: 5s
-        retries: 5
-      volumes:
-        - redisdb-data:/data
-  auth_db:
+  auth-db:
     image: postgres:latest
     restart: always
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - auth-db-data:/var/lib/postgresql/data
     environment:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_USER=${DB_USERNAME}
@@ -101,11 +127,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-  order_db:
+  order-db:
     image: postgres:latest
     restart: always
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - order-db-data:/var/lib/postgresql/data
     environment:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_USER=${DB_USERNAME}
@@ -117,8 +143,75 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-  volumes:
-    db-data:
-    redisdb-data:
+  redis:
+    image: redis:latest
+    restart: unless-stopped
+    expose:
+      - 6379
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    healthcheck:
+      test: [ "CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping | grep PONG" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redisdb-data:/data
+  mongo:
+    image: mongo:latest
+    expose:
+      - 27017
+    restart: always
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+  zookeeper:
+    image: confluentinc/cp-zookeeper
+    hostname: zookeeper
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    expose:
+      - 2181
+  kafka:
+    image: confluentinc/cp-kafka
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:19092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT+HOST:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    expose:
+      - 9092
+      - 19092
+  kafka-ui:
+    image: provectuslabs/kafka-ui
+    container_name: kafka-ui
+    ports:
+      - 9090:9090
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    depends_on:
+      - kafka
+      - zookeeper
 
-
+volumes:
+  user-db-data:
+  order-db-data:
+  auth-db-data:
+  redisdb-data:
+  mongo_data:
