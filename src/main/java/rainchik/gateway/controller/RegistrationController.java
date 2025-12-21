@@ -23,7 +23,7 @@ public class RegistrationController {
     public Mono<ResponseEntity<RegistrationResponse>> registerUser(@RequestBody RegistrationRequest registrationRequest) {
         return registrationService.register(registrationRequest)
                 .map(registrationResponse -> {
-                    if(registrationResponse.isSuccess()){
+                    if(registrationResponse.getSuccess()){
                         return ResponseEntity.ok(registrationResponse);
                     }
                     else{

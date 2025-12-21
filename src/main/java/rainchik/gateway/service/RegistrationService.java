@@ -1,5 +1,7 @@
 package rainchik.gateway.service;
 
+import org.springframework.boot.micrometer.observation.autoconfigure.ObservationProperties;
+import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import rainchik.gateway.dto.*;
@@ -23,9 +25,9 @@ public class RegistrationService {
 
         return createAuthCredentials(registrationRequest)
                 .flatMap(authRegistrationResponse -> {
-                    return createUserProfile(registrationRequest, authRegistrationResponse.getUserId())
+                    return createUserProfile(registrationRequest, authRegistrationResponse.getEmail())
                             .onErrorResume(throwable -> {
-                                return rollbackAuthCredentials(authRegistrationResponse.getUserId())
+                                return rollbackAuthCredentials(authRegistrationResponse.getEmail())
                                         .then(Mono.error(throwable));
                             });
                 })
@@ -52,7 +54,7 @@ public class RegistrationService {
                 .bodyToMono(AuthRegistrationResponse.class);
     }
 
-    private Mono<UserRegistrationResponse> createUserProfile(RegistrationRequest userRegistrationRequest, long userId) {
+    private Mono<UserRegistrationResponse> createUserProfile(RegistrationRequest userRegistrationRequest, String email) {
         UserRegistrationRequest request = new UserRegistrationRequest();
         request.setEmail(userRegistrationRequest.getEmail());
         request.setName(userRegistrationRequest.getName());
@@ -66,10 +68,11 @@ public class RegistrationService {
                 .bodyToMono(UserRegistrationResponse.class);
     }
 
-    private Mono<Void> rollbackAuthCredentials(long userId) {
+    private Mono<Void> rollbackAuthCredentials(String email) {
 
-        return authServiceWebClient.delete()
-                .uri("/token/credentials/{userId}", userId)
+        return authServiceWebClient.method(HttpMethod.DELETE)
+                .uri("/token/credentials")
+                .bodyValue(email)
                 .retrieve()
                 .bodyToMono(Void.class)
                 .onErrorResume(ex -> Mono.empty());

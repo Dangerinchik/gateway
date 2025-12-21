@@ -6,34 +6,61 @@ spring:
     name: gateway
   cloud:
     gateway:
-      routes:
-        - id: registration-route
-          uri: http://localhost:8080
-          predicates:
-            - Path=/auth/register
+      server:
+        webflux:
+          routes:
+            - id: registration-route
+              uri: http://localhost:8080
+              predicates:
+                - Path=/auth/register
 
-        - id: auth-service
-          uri: http://localhost:8081
-          predicates:
-            - Path=/token/login,/token/validate,/token/refresh,/token/save
-          filters:
-            - LoggingFilter
+            - id: auth-service
+              uri: http://localhost:8081
+              predicates:
+                - Path=/token/login,/token/validate,/token/refresh,/token/save
+              filters:
+                - LoggingFilter
 
-        - id: user-service
-          uri: http://localhost:8082
-          predicates:
-            - Path=/user/**,/card/**
-          filters:
-            - AuthValidationFilter
-            - LoggingFilter
+            - id: user-service
+              uri: http://localhost:8082
+              predicates:
+                - Path=/user/**,/card/**
+              filters:
+                - AuthValidationFilter
+                - LoggingFilter
 
-        - id: order-service
-          uri: http://localhost:8083
-          predicates:
-            - Path=/order/**,/item/**
-          filters:
-            - AuthValidationFilter
-            - LoggingFilter
+            - id: order-service
+              uri: http://localhost:8083
+              predicates:
+                - Path=/order/**,/item/**
+              filters:
+                - AuthValidationFilter
+                - LoggingFilter
+
+            - id: payment-service
+              uri: http://localhost:8085
+              predicates:
+                - Path=/payment/**
+              filters:
+                - AuthValidationFilter
+                - LoggingFilter
 
 auth-service:
   url: http://localhost:8081
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+
+otel:
+  exporter:
+    otlp:
+      endpoint: http://host.docker.internal:4317
+  resource:
+    attributes:
+      service.name: ${spring.application.name}

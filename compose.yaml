@@ -15,7 +15,7 @@ services:
         condition: service_healthy
   user-service:
     build:
-      context: ./userservice
+      context: ../user-service
     expose:
       - 8082
     environment:
@@ -39,7 +39,7 @@ services:
       retries: 5
   auth-service:
     build:
-      context: ./auth-service
+      context: ../auth-service
     expose:
       - 8081
     environment:
@@ -61,7 +61,7 @@ services:
       retries: 5
   order-service:
     build:
-      context: ./order-service
+      context: ../order-service
     expose:
       - 8083
     environment:
@@ -80,7 +80,7 @@ services:
       retries: 5
   payment-service:
     build:
-      context: ./payment-service
+      context: ../payment-service
     expose:
       - 8085
     environment:
@@ -173,7 +173,7 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper
     hostname: zookeeper
-    container_name: zookeeper
+    container_name: payment-zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -182,7 +182,7 @@ services:
   kafka:
     image: confluentinc/cp-kafka
     hostname: kafka
-    container_name: kafka
+    container_name: payment-kafka
     depends_on:
       - zookeeper
     environment:
@@ -198,7 +198,7 @@ services:
       - 19092
   kafka-ui:
     image: provectuslabs/kafka-ui
-    container_name: kafka-ui
+    container_name: payment-kafka-ui
     ports:
       - 9090:9090
     environment:
