@@ -7,7 +7,7 @@ import java.util.Collection;
 @Data
 public class AuthRegistrationResponse {
 
-    private long userId;
+    private String email;
     private String accessToken;
     private String refreshToken;
     private String username;

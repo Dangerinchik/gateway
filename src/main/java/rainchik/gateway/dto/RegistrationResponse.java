@@ -4,8 +4,8 @@ import lombok.Data;
 
 @Data
 public class RegistrationResponse {
-    private long userId;
+    private Long userId;
     private String message;
     private String timestamp;
-    private boolean success;
+    private Boolean success;
 }

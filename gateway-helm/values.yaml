@@ -1,0 +1,5 @@
+replicaCount: 2
+
+container:
+  image: dante4/gateway-gateway
+  port: 8080
